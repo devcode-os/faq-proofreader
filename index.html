@@ -12995,12 +12995,22 @@ function buildCleanedChapter(ch) {
 async function shareFile(filename, jsonObj) {
   const text = JSON.stringify(jsonObj, null, 2);
   const file = new File([text], filename, { type: 'application/json' });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+
+  if (!navigator.share) {
+    alert('DEBUG: navigator.share not available on this browser. Falling back to download.');
+  } else if (!navigator.canShare) {
+    alert('DEBUG: navigator.canShare not available. Falling back to download.');
+  } else if (!navigator.canShare({ files: [file] })) {
+    alert('DEBUG: canShare returned false for this file. Falling back to download.');
+  } else {
     try {
       await navigator.share({ files: [file], title: filename });
       return;
-    } catch (e) { /* user cancelled or unsupported, fall back below */ }
+    } catch (e) {
+      alert('DEBUG: share failed: ' + e.name + ' - ' + e.message);
+    }
   }
+
   // Fallback: plain download
   const blob = new Blob([text], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
