@@ -147,6 +147,7 @@
    { "subject": "telangana-history", "chapters": [ {slug, chapterNumber, title, faqs:[{q,a,e}]}, ... ] }
    ============================================================ */
 const MERGED_DATA = 
+
 {
   "subject": "Telangana history",
   "chapters": [
@@ -12994,10 +12995,12 @@ function buildCleanedChapter(ch) {
 /* WhatsApp number to open after download (with country code, no +, no spaces) */
 const WHATSAPP_NUMBER = '918919489236';
 
-async function shareFile(filename, jsonObj) {
+function shareFile(filename, jsonObj) {
   const text = JSON.stringify(jsonObj, null, 2);
 
-  // Step 1: always download the file first (most reliable across all browsers)
+  // Step 1: download the file. No auto-redirect after this — on mobile, opening
+  // a new tab right after triggering a download interrupts the save, so instead
+  // we wait for the user to confirm the file has saved before opening WhatsApp.
   const blob = new Blob([text], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -13005,16 +13008,36 @@ async function shareFile(filename, jsonObj) {
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
 
-  // Step 2: open WhatsApp chat so the user can attach the just-downloaded file
-  // Note: no browser can auto-attach a file into WhatsApp via a link (not allowed
-  // for security reasons on any platform), so this opens the chat with a reminder.
-  const msg = encodeURIComponent(`Sending "${filename}". Please attach it here (check your Downloads folder).`);
-  const waUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${msg}`;
+  // Step 2: show a confirmation prompt. User taps it only after the download
+  // has actually completed, then WhatsApp opens with a reminder to attach the file.
+  // (No browser/OS allows a webpage to auto-attach a file into WhatsApp directly.)
+  showWhatsAppPrompt(filename);
+}
 
-  // Small delay so the download dialog/save doesn't get interrupted by the tab switch
-  setTimeout(() => {
-    window.open(waUrl, '_blank');
-  }, 400);
+function showWhatsAppPrompt(filename) {
+  const existing = document.getElementById('waPromptOverlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'waPromptOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;display:flex;align-items:flex-end;';
+  overlay.innerHTML = `
+    <div style="background:var(--panel);color:var(--text);width:100%;padding:20px 16px 24px;border-radius:16px 16px 0 0;">
+      <div style="font-size:15px;font-weight:600;margin-bottom:6px;">File downloaded</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px;">"${filename}" saved to your device. Tap below to open WhatsApp, then attach the file from your Downloads.</div>
+      <div style="display:flex;gap:10px;">
+        <button id="waCancelBtn" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:14px;font-weight:600;">Close</button>
+        <button id="waOpenBtn" style="flex:2;padding:12px;border-radius:10px;border:none;background:#2E6B1F;color:#fff;font-size:14px;font-weight:700;">Open WhatsApp</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  document.getElementById('waCancelBtn').addEventListener('click', () => overlay.remove());
+  document.getElementById('waOpenBtn').addEventListener('click', () => {
+    const msg = encodeURIComponent(`Sending "${filename}". Please attach it here (check your Downloads folder).`);
+    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${msg}`, '_blank');
+    overlay.remove();
+  });
 }
 
 sendAllBtn.addEventListener('click', async () => {
